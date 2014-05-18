@@ -18,9 +18,9 @@ private:
     std::string mMsg;
 };
 
-class LockError : std::exception {
+class FileLockError : std::exception {
 public:
-    explicit LockError (std::string msg) : mMsg(msg) { }
+    explicit FileLockError (std::string msg) : mMsg(msg) { }
 
     const char* what () {
         return mMsg.c_str();

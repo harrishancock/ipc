@@ -16,7 +16,7 @@ namespace ipc {
  *   - prepend the system temporary directory onto the file name
  *   - create the file to be locked in case it does not exist
  *   - translate all exceptions from the locking and unlocking functions to
- *     a LockError exception
+ *     a FileLockError exception
  *
  * tmp_file_lock is meant to be used with Boost.Interprocess's RAII locking
  * classes, such as shared_lock and sharable_lock. For this reason its API is
@@ -38,7 +38,7 @@ public:
      * directory (/tmp, C:\Temp, etc.). Touch the file to make sure it exists,
      * then instantiate a Boost.Interprocess file_lock on the file.
      *
-     * Throws LockError if no system temporary directory exists, or if there is
+     * Throws FileLockError if no system temporary directory exists, or if there is
      * a file creation or permissions error. */
     tmp_file_lock (std::string name) {
         /* Build the absolute path of the lock file. */
@@ -47,7 +47,7 @@ public:
             filepath = boost::filesystem::temp_directory_path();
         }
         catch (boost::filesystem::filesystem_error& exc) {
-            throw LockError("Unable to get system temporary directory");
+            throw FileLockError("Unable to get system temporary directory");
         }
 
         filepath /= name;
@@ -55,7 +55,7 @@ public:
 
         /* Touch the file. */
         if (!std::ofstream(mFilename.c_str()).flush()) {
-            throw LockError("Unable to open " + mFilename + " for writing");
+            throw FileLockError("Unable to open " + mFilename + " for writing");
         }
 
         /* Instantiate the Boost.Interprocess file_lock. */
@@ -66,7 +66,7 @@ public:
             swap(mFlock, flock);
         }
         catch (boost::interprocess::interprocess_exception& exc) {
-            throw LockError("Unable to instantiate file lock (mutex) on " +
+            throw FileLockError("Unable to instantiate file lock (mutex) on " +
                     mFilename);
         }
     }
@@ -76,7 +76,7 @@ public:
             mFlock.lock();
         }
         catch (boost::interprocess::interprocess_exception& exc) {
-            throw LockError("Error locking " + mFilename);
+            throw FileLockError("Error locking " + mFilename);
         }
     }
 
@@ -85,7 +85,7 @@ public:
             return mFlock.try_lock();
         }
         catch (boost::interprocess::interprocess_exception& exc) {
-            throw LockError("Error trying to lock " + mFilename);
+            throw FileLockError("Error trying to lock " + mFilename);
         }
     }
 
@@ -94,7 +94,7 @@ public:
             return mFlock.timed_lock(abs_time);
         }
         catch (boost::interprocess::interprocess_exception& exc) {
-            throw LockError("Error executing timed lock on " + mFilename);
+            throw FileLockError("Error executing timed lock on " + mFilename);
         }
     }
 
@@ -103,7 +103,7 @@ public:
             mFlock.unlock();
         }
         catch (boost::interprocess::interprocess_exception& exc) {
-            throw LockError("Error unlocking " + mFilename);
+            throw FileLockError("Error unlocking " + mFilename);
         }
     }
 
@@ -112,7 +112,7 @@ public:
             mFlock.lock_sharable();
         }
         catch (boost::interprocess::interprocess_exception& exc) {
-            throw LockError("Error sharably locking " + mFilename);
+            throw FileLockError("Error sharably locking " + mFilename);
         }
     }
 
@@ -121,7 +121,7 @@ public:
             return mFlock.try_lock_sharable();
         }
         catch (boost::interprocess::interprocess_exception& exc) {
-            throw LockError("Error trying to sharably lock " + mFilename);
+            throw FileLockError("Error trying to sharably lock " + mFilename);
         }
     }
 
@@ -130,7 +130,7 @@ public:
             return mFlock.timed_lock_sharable(abs_time);
         }
         catch (boost::interprocess::interprocess_exception& exc) {
-            throw LockError("Error executing timed sharable lock on " + mFilename);
+            throw FileLockError("Error executing timed sharable lock on " + mFilename);
         }
     }
 
@@ -139,7 +139,7 @@ public:
             mFlock.unlock_sharable();
         }
         catch (boost::interprocess::interprocess_exception& exc) {
-            throw LockError("Error sharably unlocking " + mFilename);
+            throw FileLockError("Error sharably unlocking " + mFilename);
         }
     }
 
