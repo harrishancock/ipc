@@ -30,19 +30,19 @@ include_directories(${Boost_INCLUDE_DIRS})
 ##############################################################################
 # Targets
 
-add_executable(consumer consumer.cpp)
-add_executable(producer producer.cpp)
+include_directories(include)
+
+add_executable(consumer consumer-main.cpp)
+add_executable(producer producer-main.cpp)
+add_executable(sharedproducer sharedproducer-main.cpp)
+
+set(LIBS ${Boost_LOG_LIBRARY} ${Boost_FILESYSTEM_LIBRARY}
+    ${Boost_THREAD_LIBRARY} ${Boost_SYSTEM_LIBRARY})
 
 if(UNIX)
-    set(LIBS rt)
-else()
-    set(LIBS)
+    list(APPEND LIBS rt)
 endif()
 
-target_link_libraries(consumer ${LIBS}
-    ${Boost_LOG_LIBRARY} ${Boost_FILESYSTEM_LIBRARY} ${Boost_THREAD_LIBRARY}
-    ${Boost_SYSTEM_LIBRARY})
-
-target_link_libraries(producer ${LIBS}
-    ${Boost_LOG_LIBRARY} ${Boost_FILESYSTEM_LIBRARY} ${Boost_THREAD_LIBRARY}
-    ${Boost_SYSTEM_LIBRARY})
+target_link_libraries(consumer ${LIBS})
+target_link_libraries(producer ${LIBS})
+target_link_libraries(sharedproducer ${LIBS})

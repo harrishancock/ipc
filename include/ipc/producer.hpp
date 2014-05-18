@@ -1,9 +1,11 @@
-#ifndef IPCQ_SHAREDPRODUCER_HPP
-#define IPCQ_SHAREDPRODUCER_HPP
+#ifndef IPC_PRODUCER_HPP
+#define IPC_PRODUCER_HPP
 
-#include "log.hpp"
+#include "common.hpp"
 #include "tmp_file_lock.hpp"
-#include "queueconstructionerror.hpp"
+#include "queueerror.hpp"
+
+#include "util/log.hpp"
 
 #include <boost/interprocess/ipc/message_queue.hpp>
 #include <boost/interprocess/sync/sharable_lock.hpp>
@@ -12,20 +14,19 @@
 #include <string>
 #include <thread>
 
-namespace ipcq {
+namespace ipc {
 
-template <typename Msg>
-class Producer {
+template <typename Msg, template <typename> class Lock>
+class BasicProducer {
 public:
-    Producer (const char* name)
+    BasicProducer (const char* name)
             : mName(name)
-            , mConsumptionMutex(mName + "-")
-            , mProductionMutex(mName + "+") {
+            , mConsumptionMutex(mName + IPC_CONSUMER_SUFFIX)
+            , mProductionMutex(mName + IPC_PRODUCER_SUFFIX) {
         using std::swap;
 
         /* TODO timed wait and throw exception in case daemon is stalled? */
-        //boost::interprocess::sharable_lock<tmp_file_lock> productionLock { mProductionMutex };
-        boost::interprocess::scoped_lock<tmp_file_lock> productionLock { mProductionMutex };
+        Lock<tmp_file_lock> productionLock { mProductionMutex };
         swap(mProductionLock, productionLock);
 
         LOG(debug) << "Producer(" << mName << ") constructed";
@@ -53,7 +54,7 @@ public:
             mQueue.reset(new message_queue(open_only, mName.c_str()));
         }
         catch (interprocess_exception& exc) {
-            throw QueueConstructionError("Unable to open queue");
+            throw QueueError("Unable to open queue");
         }
 
         return true;
@@ -71,10 +72,16 @@ public:
 private:
     std::string mName;
     std::unique_ptr<boost::interprocess::message_queue> mQueue;
-    boost::interprocess::scoped_lock<tmp_file_lock> mProductionLock;
+    Lock<tmp_file_lock> mProductionLock;
     tmp_file_lock mConsumptionMutex;
     tmp_file_lock mProductionMutex;
 };
+
+template <typename Msg>
+using Producer = BasicProducer<Msg, boost::interprocess::scoped_lock>;
+
+template <typename Msg>
+using SharedProducer = BasicProducer<Msg, boost::interprocess::sharable_lock>;
 
 }
 

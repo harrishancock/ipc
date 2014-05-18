@@ -1,10 +1,12 @@
-#ifndef IPCQ_SHAREDPRODUCER_HPP
-#define IPCQ_SHAREDPRODUCER_HPP
+#ifndef IPC_CONSUMER_HPP
+#define IPC_CONSUMER_HPP
 
-#include "log.hpp"
+#include "common.hpp"
 #include "tmp_file_lock.hpp"
-#include "queueconstructionerror.hpp"
-#include "std_chrono_duration_to_posix_time_duration.hpp"
+#include "queueerror.hpp"
+
+#include "util/log.hpp"
+#include "util/std_chrono_duration_to_posix_time_duration.hpp"
 
 #include <boost/scope_exit.hpp>
 #include <boost/interprocess/ipc/message_queue.hpp>
@@ -13,7 +15,7 @@
 #include <string>
 #include <thread>
 
-namespace ipcq {
+namespace ipc {
 
 template <typename Msg, size_t N = 100>
 class Consumer {
@@ -25,8 +27,8 @@ public:
 
     Consumer (const char* name)
             : mName(name)
-            , mConsumptionMutex(mName + "-")
-            , mProductionMutex(mName + "+") {
+            , mConsumptionMutex(mName + IPC_CONSUMER_SUFFIX)
+            , mProductionMutex(mName + IPC_PRODUCER_SUFFIX) {
         using namespace boost::interprocess;
         using std::swap;
 
@@ -38,7 +40,7 @@ public:
             mQueue.reset(new message_queue(create_only, name, N, sizeof(Msg)));
         }
         catch (interprocess_exception& exc) {
-            throw QueueConstructionError(std::string("Unable to create queue named ") + mName);
+            throw QueueError(std::string("Unable to create queue named ") + mName);
         }
 
         scoped_lock<tmp_file_lock> consumptionLock { mConsumptionMutex };
