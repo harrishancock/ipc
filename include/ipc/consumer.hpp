@@ -3,7 +3,7 @@
 
 #include "common.hpp"
 #include "tmp_file_lock.hpp"
-#include "queueerror.hpp"
+#include "errors.hpp"
 
 #include "util/log.hpp"
 #include "util/std_chrono_duration_to_posix_time_duration.hpp"
@@ -169,7 +169,7 @@ private:
     std::thread mServiceThread;
 
     std::string mName;
-    std::unique_ptr<boost::interprocess::message_queue> mQueue;
+    std::unique_ptr<boost::interprocess::message_queue> mQueue = nullptr;
     boost::interprocess::scoped_lock<tmp_file_lock> mConsumptionLock;
     tmp_file_lock mConsumptionMutex;
     tmp_file_lock mProductionMutex;
