@@ -10,7 +10,8 @@ void fuck (int i) {
 int main () {
     ipcq::Consumer<int> consumer { "yoyoyo" };
 
-    consumer.waitForProducer(std::chrono::seconds(5));
+    //consumer.waitForProducer(std::chrono::seconds(5));
+
     try {
         consumer.startServiceThread(fuck, std::chrono::seconds(5),
                 std::chrono::milliseconds(500));

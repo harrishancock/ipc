@@ -60,6 +60,12 @@ public:
     }
 
     void send (Msg msg) {
+        try {
+            mQueue->send(&msg, sizeof(msg), 0);
+        }
+        catch (boost::interprocess::interprocess_exception& exc) {
+            throw QueueError("Unable to send");
+        }
     }
 
 private:

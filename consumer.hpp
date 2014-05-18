@@ -24,9 +24,7 @@ public:
     };
 
     Consumer (const char* name)
-            : mFailState(NO_ERROR)
-            , mStopServiceThreadFlag(false)
-            , mName(name)
+            : mName(name)
             , mConsumptionMutex(mName + "-")
             , mProductionMutex(mName + "+") {
         using namespace boost::interprocess;
@@ -75,19 +73,46 @@ public:
     template <typename Duration1, typename Duration2>
     void startServiceThread (std::function<void(Msg)> processMessage,
             Duration1 spawnProducerTimeout, Duration2 pollingTimeout) {
+        assert(!mServiceThread.joinable());
+        LOG(debug) << "Consumer starting service thread";
         mServiceThread = std::thread([=] () {
             serviceThread(processMessage, spawnProducerTimeout, pollingTimeout);
         });
     }
 
     void joinServiceThread () {
-        mServiceThread.join();
+        LOG(debug) << "Consumer joining service thread";
+        if (mServiceThread.joinable()) {
+            mServiceThread.join();
+        }
     }
 
     void stopServiceThread () {
-        if (mServiceThread.joinable()) {
-            mStopServiceThreadFlag = true;
+        LOG(debug) << "Consumer stopping service thread";
+        bool expected = false;
+        if (mServiceThread.joinable() &&
+                mStopServiceThreadFlag.compare_exchange_strong(expected, true)) {
             joinServiceThread();
+        }
+    }
+
+    template <typename Duration>
+    bool timedReceiveAndProcess (Duration timeout,
+            std::function<void(Msg)> processMessage) {
+        Msg message;
+        boost::interprocess::message_queue::size_type nReceivedBytes;
+        unsigned int priority;
+
+        auto stopTime = boost::posix_time::microsec_clock::universal_time() +
+            stdChronoDurationToPosixTimeDuration(timeout);
+        if (mQueue->timed_receive(&message, sizeof(message), nReceivedBytes, priority, stopTime)) {
+            LOG(debug) << "Consumer got msg with size " << nReceivedBytes
+                       << ", priority " << priority;
+            processMessage(message);
+            return true;
+        }
+        else {
+            return false;
         }
     }
 
@@ -105,34 +130,40 @@ private:
 
         LOG(debug) << "Consumer service thread started";
 
-        if (!waitForProducer(spawnProducerTimeout)) {
-            mFailState = NO_PRODUCER;
-            return;
-        }
+        {
+            auto stopTime = std::chrono::steady_clock::now() + spawnProducerTimeout;
+            bool gotMessage = false;
+            while (!mStopServiceThreadFlag &&
+                    std::chrono::steady_clock::now() < stopTime &&
+                    !gotMessage) {
+                gotMessage = timedReceiveAndProcess(pollingTimeout, processMessage);
+            }
 
-        Msg msg;
-        boost::interprocess::message_queue::size_type rx_size;
-        unsigned int priority;
-        while (!mProductionMutex.try_lock() && !mStopServiceThreadFlag) {
-            auto stopTime = boost::posix_time::microsec_clock::universal_time() +
-                stdChronoDurationToPosixTimeDuration(pollingTimeout);
-            while (mQueue->timed_receive(&msg, sizeof(msg), rx_size, priority,
-                        stopTime)) {
-                LOG(debug) << "Consumer got msg with size " << rx_size
-                           << "priority " << priority;
-                processMessage(msg);
+            if (gotMessage) {
+                while (!mStopServiceThreadFlag &&
+                        timedReceiveAndProcess(pollingTimeout, processMessage))
+                    ;
             }
         }
 
-        if (!mStopServiceThreadFlag) {
-            mFailState = NO_PRODUCER;
+        while (!mStopServiceThreadFlag) {
+            if (mProductionMutex.try_lock()) {
+                mProductionMutex.unlock();
+                mFailState = NO_PRODUCER;
+                LOG(debug) << "No producer present";
+                break;
+            }
+
+            while (timedReceiveAndProcess(pollingTimeout, processMessage))
+                ;
         }
 
-        mProductionMutex.unlock();
+        /* Who knows, we might need to be restarted. */
+        mStopServiceThreadFlag = false;
     }
 
-    std::atomic<FailState> mFailState;
-    std::atomic<bool> mStopServiceThreadFlag;
+    std::atomic<FailState> mFailState = { NO_ERROR };
+    std::atomic<bool> mStopServiceThreadFlag = { false } ;
     std::thread mServiceThread;
 
     std::string mName;
