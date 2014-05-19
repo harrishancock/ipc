@@ -79,8 +79,8 @@ public:
         }
     }
 
-    template <typename Duration>
-    bool timedReceiveAndProcess (Duration timeout,
+    template <typename Rep, typename Period>
+    bool timedReceiveAndProcess (std::chrono::duration<Rep, Period> timeout,
             std::function<void(Msg)> processMessage) {
         Msg message;
         boost::interprocess::message_queue::size_type nReceivedBytes;
@@ -104,9 +104,10 @@ public:
     }
 
 private:
-    template <typename Duration1, typename Duration2>
+    template <typename R1, typename P1, typename R2, typename P2>
     void serviceThread (std::function<void(Msg)> processMessage,
-            Duration1 spawnProducerTimeout, Duration2 pollingTimeout) {
+            std::chrono::duration<R1, P1> spawnProducerTimeout,
+            std::chrono::duration<R2, P2> pollingTimeout) {
         BOOST_SCOPE_EXIT(void) {
             LOG(debug) << "Exiting consumer service thread";
         } BOOST_SCOPE_EXIT_END
