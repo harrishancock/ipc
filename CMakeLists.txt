@@ -35,6 +35,7 @@ include_directories(include)
 add_executable(consumer consumer-main.cpp)
 add_executable(producer producer-main.cpp)
 add_executable(sharedproducer sharedproducer-main.cpp)
+add_executable(monospawn monospawn-main.cpp)
 
 set(LIBS ${Boost_LOG_LIBRARY} ${Boost_FILESYSTEM_LIBRARY}
     ${Boost_THREAD_LIBRARY} ${Boost_SYSTEM_LIBRARY})
@@ -46,3 +47,4 @@ endif()
 target_link_libraries(consumer ${LIBS})
 target_link_libraries(producer ${LIBS})
 target_link_libraries(sharedproducer ${LIBS})
+target_link_libraries(monospawn ${LIBS})
