@@ -53,6 +53,34 @@ public:
         stopServiceThread();
     }
 
+    /* Start a thread to service the queue. As messages come in, the service
+     * thread will call the user-provided processMessage function with the
+     * message as the sole argument (use a lambda or std::bind if you need to
+     * use a non-unary function). If a producer never connects to the queue
+     * after a specified interval (spawnProducerTimeout) the service thread is
+     * stopped and the fail state is set to NO_PRODUCER. There is currently no
+     * way to specify infinity as a wait time. If a producer appears within the
+     * spawnProducerTimeout interval, then subsequently disappears, the service
+     * thread is also stopped.
+     *
+     * Since we can only detect a producer process by checking to see if it has
+     * acquired the queue's production lock, and there is no way to block
+     * waiting for another process to acquire a lock, we must poll the mutex at
+     * intervals to see if the producer has spawned. This interval is
+     * pollingTimeout.
+     *
+     * pollingTimeout is also the interval at which the stop-thread flag is
+     * checked. Therefore, pollingTimeout plus some small epsilon is the
+     * maximum amount of time client code should have to wait for
+     * stopServiceThread to execute.
+     *
+     * Since a producer process's lifetime might fit into the pollingTimeout
+     * window, there is a very likely chance that we cannot detect short-lived
+     * processes which open the queue, send some messages, then exit. For this
+     * reason, the queue is checked continuously during the initial
+     * spawnProducerTimeout interval, and if a message is received, the queue
+     * is exhausted before checking the production mutex. This guarantees that
+     * we will receive all messages from a short-lived process. */
     template <typename Duration1, typename Duration2>
     void startServiceThread (std::function<void(Msg)> processMessage,
             Duration1 spawnProducerTimeout, Duration2 pollingTimeout) {
@@ -70,6 +98,9 @@ public:
         }
     }
 
+    /* Signal the service thread to exit gracefully. This function should block
+     * for at most ~pollingTimeout duration, where pollingTimeout is the
+     * argument to startServiceThread. */
     void stopServiceThread () {
         LOG(debug) << "Consumer stopping service thread";
         bool expected = false;
@@ -83,6 +114,9 @@ public:
     bool timedReceiveAndProcess (std::chrono::duration<Rep, Period> timeout,
             std::function<void(Msg)> processMessage) {
         Msg message;
+
+        /* Things we have to receive because we're using Boost.Interprocess
+         * message_queues, but don't care about. */
         boost::interprocess::message_queue::size_type nReceivedBytes;
         unsigned int priority;
 
@@ -104,6 +138,12 @@ public:
     }
 
 private:
+    /* XXX This is important: if you go into a loop in this function which
+     * might block for a while (more than a few milliseconds), consider
+     * checking mStopServiceThreadFlag on every test of the conditional.
+     *
+     * XXX This is also important: if you change the implementation here,
+     * update the comments above startServiceThread. */
     template <typename R1, typename P1, typename R2, typename P2>
     void serviceThread (std::function<void(Msg)> processMessage,
             std::chrono::duration<R1, P1> spawnProducerTimeout,
@@ -115,6 +155,8 @@ private:
         LOG(debug) << "Consumer service thread started";
 
         {
+            /* Wait for and process the first burst of messages, or until
+             * spawnProducerTimeout elapses. */
             auto stopTime = std::chrono::steady_clock::now() + spawnProducerTimeout;
             bool gotMessage = false;
             while (!mStopServiceThreadFlag &&
@@ -138,7 +180,8 @@ private:
                 break;
             }
 
-            while (timedReceiveAndProcess(pollingTimeout, processMessage))
+            while (!mStopServiceThreadFlag &&
+                    timedReceiveAndProcess(pollingTimeout, processMessage))
                 ;
         }
 
