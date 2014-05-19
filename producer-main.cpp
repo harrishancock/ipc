@@ -1,6 +1,6 @@
 #include "ipc/producer.hpp"
 
-int main () {
+int main () try {
     ipc::Producer<int> producer { "barobo-daemon-master-queue" };
 
     if (!producer.waitForConsumer(std::chrono::seconds(1))) {
@@ -25,4 +25,13 @@ int main () {
     for (int i = 10; i < 20; ++i) {
         producer.send(i);
     }
+}
+catch (ipc::NoConsumer& exc) {
+    LOG(warning) << exc.what();
+}
+catch (ipc::FileLockError& exc) {
+    LOG(error) << "Interprocess synchronization error: " << exc.what();
+}
+catch (ipc::QueueError& exc) {
+    LOG(error) << exc.what();
 }

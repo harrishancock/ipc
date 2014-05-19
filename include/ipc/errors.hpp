@@ -6,6 +6,13 @@
 
 namespace ipc {
 
+class NoConsumer : std::exception {
+public:
+    const char* what () {
+        return "No consumer present";
+    }
+};
+
 class QueueError : std::exception {
 public:
     explicit QueueError (std::string msg) : mMsg(msg) { }
