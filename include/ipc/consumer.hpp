@@ -53,25 +53,6 @@ public:
         stopServiceThread();
     }
 
-    template <typename Duration>
-    bool waitForProducer (Duration timeout) {
-        LOG(debug) << "Waiting for producer ...";
-
-        auto stopTime = std::chrono::steady_clock::now() + timeout;
-        while (mProductionMutex.try_lock()) {
-            LOG(debug) << "Got production lock :(";
-            mProductionMutex.unlock();
-            if (std::chrono::steady_clock::now() >= stopTime) {
-                LOG(debug) << "Timed out waiting for producer";
-                return false;
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(250));
-        }
-
-        LOG(debug) << "Producer connected!";
-        return true;
-    }
-
     template <typename Duration1, typename Duration2>
     void startServiceThread (std::function<void(Msg)> processMessage,
             Duration1 spawnProducerTimeout, Duration2 pollingTimeout) {
